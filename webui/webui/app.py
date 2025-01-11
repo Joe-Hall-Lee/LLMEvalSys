@@ -1,16 +1,60 @@
+from __future__ import annotations
+from typing import Iterable
 import gradio as gr
+from gradio.themes.base import Base
+from gradio.themes.utils import colors, fonts, sizes
+import time
 import pandas as pd
 import json
 from vllm import LLM, SamplingParams
 from collections import Counter
 
-# 加载 vllm 模型
-llm = LLM(model="/H1/zhouhongli/PORM/output/Llama-3-8B-Instruct-helpsteer2_dpo_0.05_lr_1e-6_epoch_3",
+# Load the model
+llm = LLM(model="/H1/zhouhongli/POEnhancer/output/Qwen2.5-3B-Instruct-helpsteer2_sft_1e-5_dpo_0.05_lr_1e-6_epoch_3",
           gpu_memory_utilization=0.5)
 
-# 评估函数（单条数据）
+
+class Seafoam(Base):
+    def __init__(self, *, primary_hue: colors.Color | str = colors.teal,
+                 secondary_hue: colors.Color | str = colors.purple,
+                 neutral_hue: colors.Color | str = colors.gray,
+                 spacing_size: sizes.Size | str = sizes.spacing_md,
+                 radius_size: sizes.Size | str = sizes.radius_md,
+                 text_size: sizes.Size | str = sizes.text_lg,
+                 font: fonts.Font | str | Iterable[fonts.Font | str] = (
+                     fonts.GoogleFont("Quicksand"), "ui-sans-serif", "sans-serif"),
+                 font_mono: fonts.Font | str | Iterable[fonts.Font | str] = (fonts.GoogleFont("IBM Plex Mono"), "ui-monospace", "monospace")):
+        super().__init__(
+            primary_hue=primary_hue,
+            secondary_hue=secondary_hue,
+            neutral_hue=neutral_hue,
+            spacing_size=spacing_size,
+            radius_size=radius_size,
+            text_size=text_size,
+            font=font,
+            font_mono=font_mono,
+        )
+        super().set(
+            body_background_fill="linear-gradient(135deg, *primary_400, *secondary_400)",
+            body_background_fill_dark="linear-gradient(135deg, *primary_700, *secondary_700)",
+            button_primary_background_fill="linear-gradient(90deg, *primary_500, *secondary_500)",
+            button_primary_background_fill_hover="linear-gradient(90deg, *primary_400, *secondary_400)",
+            button_primary_text_color="white",
+            button_primary_background_fill_dark="linear-gradient(90deg, *primary_600, *secondary_600)",
+            slider_color="*secondary_500",
+            slider_color_dark="*secondary_600",
+            block_title_text_weight="600",
+            block_border_width="2px",
+            block_shadow="*shadow_drop_md",
+            button_large_padding="24px",
+        )
 
 
+# Initialize the theme
+seafoam = Seafoam()
+
+
+# Evaluation function
 def evaluate(instruction, answer1, answer2):
     prompt = f"""[INST] <<SYS>>
 You are a helpful assistant in evaluating the quality of the outputs for a given instruction. Your goal is to select the best output for the given instruction.
@@ -39,7 +83,7 @@ You should answer using ONLY "Output (a)" or "Output (b)". Do NOT output any oth
 
 # Which is better, Output (a) or Output (b)? Your response should be either "Output (a)" or "Output (b)": [/INST]"""
 
-    # 调用 vllm 生成
+    # Call vllm to generate
     sampling_params = SamplingParams(max_tokens=1024)
     outputs = llm.generate(prompt, sampling_params)
     result = outputs[0].outputs[0].text
@@ -51,9 +95,8 @@ You should answer using ONLY "Output (a)" or "Output (b)". Do NOT output any oth
     else:
         return "无法确定哪个回答更好"
 
-# 批量评估函数
 
-
+# Batch evaluation function
 def evaluate_batch(file, output_path):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file.name)
@@ -99,7 +142,7 @@ You should answer using ONLY "Output (a)" or "Output (b)". Do NOT output any oth
 
 # Which is better, Output (a) or Output (b)? Your response should be either "Output (a)" or "Output (b)": [/INST]"""
 
-        # 调用 vllm 进行生成
+        # Call vllm to generate
         sampling_params = SamplingParams(max_tokens=1024)
         outputs = llm.generate(prompt, sampling_params)
         result = outputs[0].outputs[0].text
@@ -114,7 +157,7 @@ You should answer using ONLY "Output (a)" or "Output (b)". Do NOT output any oth
             results.append("无法确定哪个回答更好")
             result_counts["无法确定"] += 1
 
-    # 保存评估结果到用户指定路径
+    # Save the evaluation results to the user-specified path
     output_df = pd.DataFrame({
         'Instruction': df['instruction'],
         'Answer 1': df['answer1'],
@@ -128,122 +171,23 @@ You should answer using ONLY "Output (a)" or "Output (b)". Do NOT output any oth
         return f"保存文件时出错：{str(e)}"
 
 
-# 添加更炫酷的设计样式
-css = """
-/* 基础背景和字体设置 */
-body {
-    font-family: 'Arial', sans-serif;
-    color: #fff;
-    padding: 40px;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    height: 100vh;
-    background: linear-gradient(135deg, #2b5876, #4e4376); /* 固定的背景渐变 */
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* 标题样式 */
-#header {
-    text-align: center;
-    font-size: 3em;
-    font-weight: bold;
-    margin-bottom: 40px;
-    color: #FF6347;  /* 固定红色 */
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);  /* 加阴影效果 */
-}
-
-/* 输入框和按钮样式 */
-input, .gradio-button {
-    border-radius: 12px;
-    border: 1px solid #DDD;
-    padding: 16px;
-    font-size: 1.2em;
-    margin: 10px;
-    transition: transform 0.2s ease;
-}
-
-.gradio-button {
-    background-color: #FF6347;  /* 固定红色 */
-    color: white;
-    font-size: 1.1em;
-    font-weight: bold;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-}
-
-.gradio-button:hover {
-    background-color: #FF4500;  /* 悬停时的橙色 */
-    transform: scale(1.05);
-}
-
-.gradio-button:active {
-    background-color: #FF6347;  /* 按下时恢复原色 */
-    transform: scale(1);
-}
-
-textarea {
-    resize: none;
-    height: 120px;
-}
-
-/* 标签栏样式 */
-#tabs {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-#tabs .gradio-tab {
-    margin: 10px 20px;
-    padding: 15px 30px;
-    font-size: 1.1em;
-    font-weight: bold;
-    border-radius: 8px;
-    background-color: rgba(255, 255, 255, 0.2);
-    color: #fff;
-    transition: background-color 0.3s ease;
-}
-
-#tabs .gradio-tab.active {
-    background-color: #FF6347;  /* 固定的标签选中颜色 */
-}
-
-/* 底部样式 */
-#footer {
-    margin-top: 50px;
-    text-align: center;
-    font-size: 1em;
-    color: #F1F1F1;
-    font-style: italic;
-    letter-spacing: 1px;
-}
-
-#footer a {
-    color: #FF6347;
-    text-decoration: none;
-}
-
-#footer a:hover {
-    color: #FF4500;
-}
-"""
-
-# 创建 Gradio 页面
-with gr.Blocks(css=css) as demo:
-    gr.Markdown("<div id='header'>LLM Evaluation Web Application</div>")
+# Create Gradio page with the Seafoam theme
+with gr.Blocks(theme=seafoam) as demo:
+    gr.Markdown(
+        "<div id='header' style='font-size: 28px; color: #ffffff; text-align: center;'>LLM Evaluation Web Application</div>")
 
     with gr.Tab("Manual Input"):
         instruction_input = gr.Textbox(
-            label="Instruction", placeholder="Enter the instruction here...")
+            label="Instruction", placeholder="Enter the instruction here...", lines=3)
         answer1_input = gr.Textbox(
-            label="Answer 1", placeholder="Enter the first answer here...")
+            label="Answer 1", placeholder="Enter the first answer here...", lines=3)
         answer2_input = gr.Textbox(
-            label="Answer 2", placeholder="Enter the second answer here...")
+            label="Answer 2", placeholder="Enter the second answer here...", lines=3)
         result_output = gr.Textbox(
-            label="Evaluation Result", placeholder="Result will appear here...")
+            label="Evaluation Result", placeholder="Result will appear here...", lines=2)
 
-        evaluate_btn = gr.Button("Evaluate")
+        evaluate_btn = gr.Button(
+            "Evaluate", elem_id="evaluate_button", size="lg")
         evaluate_btn.click(evaluate, inputs=[
                            instruction_input, answer1_input, answer2_input], outputs=result_output)
 
@@ -252,13 +196,14 @@ with gr.Blocks(css=css) as demo:
         save_path_input = gr.Textbox(
             label="Save Path", placeholder="Enter output file path")
         batch_result_output = gr.Textbox(
-            label="Batch Result", placeholder="Results will appear here...")
+            label="Batch Result", placeholder="Results will appear here...", lines=3)
 
-        batch_evaluate_btn = gr.Button("Start Batch Evaluation")
+        batch_evaluate_btn = gr.Button("Start Batch Evaluation", size="lg")
         batch_evaluate_btn.click(evaluate_batch, inputs=[
                                  file_input, save_path_input], outputs=batch_result_output)
 
-    gr.Markdown("<div id='footer'>Designed By Hongli Zhou</div>")
+    gr.Markdown(
+        "<div id='footer' style='font-size: 18px; color: #ffffff; text-align: center;'>Designed By Hongli Zhou</div>")
 
 if __name__ == "__main__":
     demo.launch()
